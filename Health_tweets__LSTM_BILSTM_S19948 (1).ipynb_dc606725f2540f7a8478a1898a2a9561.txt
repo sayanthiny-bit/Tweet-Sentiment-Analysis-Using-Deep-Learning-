@@ -1,0 +1,1170 @@
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "id": "chFxLC6rxIuW"
+      },
+      "outputs": [],
+      "source": [
+        "#Import all the libraries needed\n",
+        "import pandas as pd    # to load dataset\n",
+        "import numpy as np     # for mathematic equation\n",
+        "from nltk.corpus import stopwords   # to get collection of stopwords\n",
+        "from sklearn.model_selection import train_test_split       # for splitting dataset\n",
+        "from tensorflow.keras.preprocessing.text import Tokenizer  # to encode text to int\n",
+        "from tensorflow.keras.preprocessing.sequence import pad_sequences   # to do padding or truncating\n",
+        "from tensorflow.keras.models import Sequential     # the model\n",
+        "from tensorflow.keras.layers import Embedding,LSTM,Bidirectional,Dense # layers of the architecture\n",
+        "from tensorflow.keras.callbacks import ModelCheckpoint   # save model\n",
+        "from tensorflow.keras.models import load_model   # load saved model\n",
+        "import re\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Preview dataset"
+      ],
+      "metadata": {
+        "id": "GDa_MsDyx_Jc"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "id": "dSRVxC5JxIuY",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "87040d8b-052e-4268-a6dc-f855d1cc5bc2"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Mounted at /content/drive\n",
+            "          tweet_id  label                                              tweet\n",
+            "0     6.430000e+17      0  user_mention all i can tell you is i have had ...\n",
+            "1     6.440000e+17      0  my doctor told me stop he gave me sum pop i mi...\n",
+            "2     8.150000e+17      1  i take tylenol and i wake up in the middle of ...\n",
+            "3     6.820000e+17      0  i got xans in an advil bottle i dont take them...\n",
+            "4     6.440000e+17      1  mom says i need to stop eating so much bc ive ...\n",
+            "...            ...    ...                                                ...\n",
+            "9986  6.480000e+17      1                          that vicodin messed me up\n",
+            "9987  5.710000e+17      0                  user_mention get some tylenol lol\n",
+            "9988  6.470000e+17      0                          like a walking tamiflu ad\n",
+            "9989  6.990000e+17      0                         klay and steph on steroids\n",
+            "9990  8.230000e+17      0                    horrible pops another xanax url\n",
+            "\n",
+            "[9991 rows x 3 columns]\n",
+            "          tweet_id  label                                              tweet\n",
+            "0     6.411550e+17      0  when you try to run away from the iv needle so...\n",
+            "1     6.425520e+17      1  i just knew i took an ambien for sleep too ear...\n",
+            "2     6.410410e+17      1  i mean i get that my celexa is the reason behi...\n",
+            "3     7.476620e+17      0  if you call me dumb or her dumb one more time ...\n",
+            "4     6.406830e+17      0  i do not want to go to the grocery store but i...\n",
+            "...            ...    ...                                                ...\n",
+            "3326  6.392340e+17      0                         fina take this xanax knock\n",
+            "3327  6.398700e+17      0                user_mention yr on citalopram right\n",
+            "3328  6.433340e+17      0                   user_mention yeah im going norco\n",
+            "3329  5.588580e+17      0                   user_mention tylenol w codin lol\n",
+            "3330  7.131560e+17      0                thats determination on steroids url\n",
+            "\n",
+            "[3331 rows x 3 columns]\n"
+          ]
+        }
+      ],
+      "source": [
+        "import pathlib\n",
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')\n",
+        "data_train = pathlib.Path('/content/drive/My Drive/Assignment_02/phm_train.csv')\n",
+        "data_test = pathlib.Path('/content/drive/My Drive/Assignment_02/phm_test.csv')\n",
+        "data_train = pd.read_csv(data_train)\n",
+        "print(data_train)\n",
+        "data_test = pd.read_csv(data_test)\n",
+        "print(data_test)\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Declaring the english stop words"
+      ],
+      "metadata": {
+        "id": "Uh5243vMyKhs"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 3,
+      "metadata": {
+        "id": "nzux8uRZxIuZ",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "36e1b4fb-f8c4-40ab-db99-1186885d166f"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "[nltk_data] Downloading package stopwords to /root/nltk_data...\n",
+            "[nltk_data]   Unzipping corpora/stopwords.zip.\n"
+          ]
+        }
+      ],
+      "source": [
+        "import nltk\n",
+        "nltk.download('stopwords')\n",
+        "from nltk.corpus import stopwords\n",
+        "english_stops = set(stopwords.words('english'))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Preprocessing and Encoding labels"
+      ],
+      "metadata": {
+        "id": "lA4BqsNlySGl"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 42,
+      "metadata": {
+        "id": "uL16UfD6xIua",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "80e4555c-1e4a-495b-aa8e-31d1344c27e0"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Tweets:\n",
+            "0       [user, mention, tell, relapses, cure, hear, do...\n",
+            "1       [doctor, told, stop, gave, sum, pop, mix, w, a...\n",
+            "2       [take, tylenol, wake, middle, night, put, ice,...\n",
+            "3       [got, xans, advil, bottle, dont, take, shits, ...\n",
+            "4       [mom, says, need, stop, eating, much, bc, ive,...\n",
+            "                              ...                        \n",
+            "9986                                    [vicodin, messed]\n",
+            "9987                   [user, mention, get, tylenol, lol]\n",
+            "9988                         [like, walking, tamiflu, ad]\n",
+            "9989                              [klay, steph, steroids]\n",
+            "9990                [horrible, pops, another, xanax, url]\n",
+            "Name: tweet, Length: 9991, dtype: object \n",
+            "\n",
+            "0    [try, run, away, iv, needle, doctor, drug, w, ...\n",
+            "1    [knew, took, ambien, sleep, early, im, ready, ...\n",
+            "2    [mean, get, celexa, reason, behind, lot, weigh...\n",
+            "3    [call, dumb, dumb, one, time, dont, care, many...\n",
+            "4    [want, go, grocery, store, cant, pay, anyone, ...\n",
+            "Name: tweet, dtype: object \n",
+            "\n",
+            "Labels:\n",
+            "0       0\n",
+            "1       0\n",
+            "2       1\n",
+            "3       0\n",
+            "4       1\n",
+            "       ..\n",
+            "9986    1\n",
+            "9987    0\n",
+            "9988    0\n",
+            "9989    0\n",
+            "9990    0\n",
+            "Name: label, Length: 9991, dtype: int64\n",
+            "0    0\n",
+            "1    1\n",
+            "2    1\n",
+            "3    0\n",
+            "4    0\n",
+            "Name: label, dtype: int64\n"
+          ]
+        }
+      ],
+      "source": [
+        "def preprocess(tweets):\n",
+        "    tweets = tweets.replace({'<.*?>': ''}, regex = True)          # remove html tag\n",
+        "    tweets = tweets.replace({'[^A-Za-z]': ' '}, regex = True)     # remove non alphabet\n",
+        "    tweets = tweets.apply(lambda review: [w for w in review.split() if w not in english_stops])  # remove stop words\n",
+        "    tweets = tweets.apply(lambda review: [w.lower() for w in review])   # lower case\n",
+        "\n",
+        "    return tweets\n",
+        "\n",
+        "def load_dataset():\n",
+        "  # tarin data\n",
+        "    x_train = data_train['tweet']       # Tweets/Input\n",
+        "    y_train = data_train['label']    # labels/Output\n",
+        "\n",
+        "  # test data\n",
+        "    x_test = data_test['tweet']       # Tweets/Input\n",
+        "    y_test = data_test['label']\n",
+        "\n",
+        "    x_train = preprocess(x_train)\n",
+        "    x_test = preprocess(x_test)\n",
+        "\n",
+        "\n",
+        "    return x_train, y_train, x_test, y_test\n",
+        "\n",
+        "\n",
+        "x_train, y_train, x_test, y_test = load_dataset()\n",
+        "\n",
+        "print('Tweets:')\n",
+        "print(x_train, '\\n')\n",
+        "print(x_test.head(), '\\n')\n",
+        "print('Labels:')\n",
+        "print(y_train)\n",
+        "print(y_test.head())"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# No need encoding needed becouse already Y data is encoded"
+      ],
+      "metadata": {
+        "id": "B2W47PyHNneE"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Function for getting the maximum Tweet length, by calculating the mean of all the reviews length (using numpy.mean)"
+      ],
+      "metadata": {
+        "id": "yaz82yjyykT1"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 43,
+      "metadata": {
+        "id": "B-5QgyYgxIuc"
+      },
+      "outputs": [],
+      "source": [
+        "def get_max_length():\n",
+        "    review_length = []\n",
+        "    for review in x_train:\n",
+        "        review_length.append(len(review))\n",
+        "\n",
+        "    return int(np.ceil(np.mean(review_length)))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Tokenize and Pad/Truncate Reviews\n",
+        "#post, pad or truncate the words in the back of a sentence\n",
+        "#pre, pad or truncate the words in front of a sentence"
+      ],
+      "metadata": {
+        "id": "ASGim_ImyrZk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 44,
+      "metadata": {
+        "id": "j3dXUq6QxIuc",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "bf3c4b80-7b9a-4ebf-dfcc-b570d241b860"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Encoded X Train\n",
+            " [[    2     1   200 ...   944  3624  1952]\n",
+            " [  115   122   147 ...   193    40   322]\n",
+            " [    6     3   330 ...   626  1710    29]\n",
+            " ...\n",
+            " [    7   529  1739 ...     0     0     0]\n",
+            " [12658 12659     8 ...     0     0     0]\n",
+            " [  645  1436   174 ...     0     0     0]] \n",
+            "\n",
+            "Encoded X Test\n",
+            " [[  98  606  109 ...  193    4  318]\n",
+            " [ 585   11   56 ...   16  707   55]\n",
+            " [ 327   12 1209 ...  778    5   88]\n",
+            " ...\n",
+            " [   2    1  126 ...    0    0    0]\n",
+            " [   2    1    3 ...    0    0    0]\n",
+            " [  59    8    9 ...    0    0    0]] \n",
+            "\n",
+            "Maximum review length:  10\n"
+          ]
+        }
+      ],
+      "source": [
+        "# ENCODE Tweet\n",
+        "token = Tokenizer(lower=False)    # no need lower, because already lowered the data in load_data()\n",
+        "token.fit_on_texts(x_train)\n",
+        "x_train = token.texts_to_sequences(x_train)\n",
+        "x_test = token.texts_to_sequences(x_test)\n",
+        "\n",
+        "max_length = get_max_length()\n",
+        "\n",
+        "x_train = pad_sequences(x_train, maxlen=max_length, padding='post', truncating='post')\n",
+        "x_test = pad_sequences(x_test, maxlen=max_length, padding='post', truncating='post')\n",
+        "\n",
+        "total_words = len(token.word_index) + 1   # add 1 because of 0 padding\n",
+        "\n",
+        "print('Encoded X Train\\n', x_train, '\\n')\n",
+        "print('Encoded X Test\\n', x_test, '\\n')\n",
+        "print('Maximum review length: ', max_length)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Build the model"
+      ],
+      "metadata": {
+        "id": "EGmkzZzryxRz"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 45,
+      "metadata": {
+        "id": "zKsE4CzxxIuc",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 279
+        },
+        "outputId": "70bbd92d-8543-449b-a7b1-0df926cabe11"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.11/dist-packages/keras/src/layers/core/embedding.py:90: UserWarning: Argument `input_length` is deprecated. Just remove it.\n",
+            "  warnings.warn(\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1mModel: \"sequential_4\"\u001b[0m\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"sequential_4\"</span>\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓\n",
+              "┃\u001b[1m \u001b[0m\u001b[1mLayer (type)                   \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape          \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m      Param #\u001b[0m\u001b[1m \u001b[0m┃\n",
+              "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩\n",
+              "│ embedding_4 (\u001b[38;5;33mEmbedding\u001b[0m)         │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m10\u001b[0m, \u001b[38;5;34m64\u001b[0m)         │       \u001b[38;5;34m810,240\u001b[0m │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ lstm_4 (\u001b[38;5;33mLSTM\u001b[0m)                   │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m128\u001b[0m)            │        \u001b[38;5;34m98,816\u001b[0m │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ dense_4 (\u001b[38;5;33mDense\u001b[0m)                 │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m1\u001b[0m)              │           \u001b[38;5;34m129\u001b[0m │\n",
+              "└─────────────────────────────────┴────────────────────────┴───────────────┘\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓\n",
+              "┃<span style=\"font-weight: bold\"> Layer (type)                    </span>┃<span style=\"font-weight: bold\"> Output Shape           </span>┃<span style=\"font-weight: bold\">       Param # </span>┃\n",
+              "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩\n",
+              "│ embedding_4 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">Embedding</span>)         │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">10</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">64</span>)         │       <span style=\"color: #00af00; text-decoration-color: #00af00\">810,240</span> │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ lstm_4 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">LSTM</span>)                   │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">128</span>)            │        <span style=\"color: #00af00; text-decoration-color: #00af00\">98,816</span> │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ dense_4 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">Dense</span>)                 │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">1</span>)              │           <span style=\"color: #00af00; text-decoration-color: #00af00\">129</span> │\n",
+              "└─────────────────────────────────┴────────────────────────┴───────────────┘\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Total params: \u001b[0m\u001b[38;5;34m909,185\u001b[0m (3.47 MB)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">909,185</span> (3.47 MB)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m909,185\u001b[0m (3.47 MB)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">909,185</span> (3.47 MB)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m0\u001b[0m (0.00 B)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> (0.00 B)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "None\n"
+          ]
+        }
+      ],
+      "source": [
+        "# ARCHITECTURE\n",
+        "EMBED_DIM = 64\n",
+        "LSTM_OUT_1 = 128\n",
+        "LSTM_OUT_2 = 64\n",
+        "\n",
+        "lstm_model = Sequential()\n",
+        "lstm_model.add(Embedding(total_words, EMBED_DIM, input_length = max_length))\n",
+        "lstm_model.add(LSTM(LSTM_OUT_1,return_sequences=False))\n",
+        "#lstm_model.add(LSTM(LSTM_OUT_2))\n",
+        "lstm_model.add(Dense(1, activation='sigmoid'))\n",
+        "\n",
+        "lstm_model.build(input_shape=(None, max_length))\n",
+        "print(lstm_model.summary())"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "OFGxCryQKn4O"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# ARCHITECTURE\n",
+        "EMBED_DIM = 64\n",
+        "biLSTM_OUT_1 = 128\n",
+        "#LSTM_OUT_2 = 64\n",
+        "\n",
+        "bilstm_model= Sequential()\n",
+        "bilstm_model.add(Embedding(total_words, EMBED_DIM, input_length = max_length))\n",
+        "bilstm_model.add(Bidirectional(LSTM(biLSTM_OUT_1,return_sequences=False)))\n",
+        "#bilstm_model.add(Bidirectional(LSTM(LSTM_OUT_2)))\n",
+        "bilstm_model.add(Dense(1, activation='sigmoid'))\n",
+        "\n",
+        "bilstm_model.build(input_shape=(None, max_length))\n",
+        "print(bilstm_model.summary())"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 243
+        },
+        "id": "SLaShf6ZgpYY",
+        "outputId": "38f02f61-0524-4ce7-ba72-07b38634006b"
+      },
+      "execution_count": 58,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1mModel: \"sequential_7\"\u001b[0m\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"sequential_7\"</span>\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓\n",
+              "┃\u001b[1m \u001b[0m\u001b[1mLayer (type)                   \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape          \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m      Param #\u001b[0m\u001b[1m \u001b[0m┃\n",
+              "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩\n",
+              "│ embedding_7 (\u001b[38;5;33mEmbedding\u001b[0m)         │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m10\u001b[0m, \u001b[38;5;34m64\u001b[0m)         │       \u001b[38;5;34m810,240\u001b[0m │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ bidirectional_4 (\u001b[38;5;33mBidirectional\u001b[0m) │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256\u001b[0m)            │       \u001b[38;5;34m197,632\u001b[0m │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ dense_7 (\u001b[38;5;33mDense\u001b[0m)                 │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m1\u001b[0m)              │           \u001b[38;5;34m257\u001b[0m │\n",
+              "└─────────────────────────────────┴────────────────────────┴───────────────┘\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓\n",
+              "┃<span style=\"font-weight: bold\"> Layer (type)                    </span>┃<span style=\"font-weight: bold\"> Output Shape           </span>┃<span style=\"font-weight: bold\">       Param # </span>┃\n",
+              "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩\n",
+              "│ embedding_7 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">Embedding</span>)         │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">10</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">64</span>)         │       <span style=\"color: #00af00; text-decoration-color: #00af00\">810,240</span> │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ bidirectional_4 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">Bidirectional</span>) │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>)            │       <span style=\"color: #00af00; text-decoration-color: #00af00\">197,632</span> │\n",
+              "├─────────────────────────────────┼────────────────────────┼───────────────┤\n",
+              "│ dense_7 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">Dense</span>)                 │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">1</span>)              │           <span style=\"color: #00af00; text-decoration-color: #00af00\">257</span> │\n",
+              "└─────────────────────────────────┴────────────────────────┴───────────────┘\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Total params: \u001b[0m\u001b[38;5;34m1,008,129\u001b[0m (3.85 MB)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">1,008,129</span> (3.85 MB)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m1,008,129\u001b[0m (3.85 MB)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">1,008,129</span> (3.85 MB)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m0\u001b[0m (0.00 B)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> (0.00 B)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "None\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Set hyperparameters\n",
+        "lstm_model.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])\n",
+        "bilstm_model.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])"
+      ],
+      "metadata": {
+        "id": "GaEkDqp0y3s8"
+      },
+      "execution_count": 59,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Model Training"
+      ],
+      "metadata": {
+        "id": "HfXVls9hzBrk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 60,
+      "metadata": {
+        "id": "ncwxJzJ4xIud"
+      },
+      "outputs": [],
+      "source": [
+        "lstm_checkpoint = ModelCheckpoint(\n",
+        "    'models/LSTM.h5',\n",
+        "    monitor='accuracy',\n",
+        "    save_best_only=True,\n",
+        "    verbose=1\n",
+        ")\n",
+        "bilstm_checkpoint = ModelCheckpoint(\n",
+        "    'models/BiLSTM.h5',\n",
+        "    monitor='accuracy',\n",
+        "    save_best_only=True,\n",
+        "    verbose=1\n",
+        ")\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#lstm_Model Training"
+      ],
+      "metadata": {
+        "id": "gY6F99qYRorZ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 49,
+      "metadata": {
+        "id": "e_DGv7xXxIud",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "7f304d78-a1f1-4a47-9091-989c0ebca8de"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Epoch 1/7\n",
+            "\u001b[1m77/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 32ms/step - accuracy: 0.7178 - loss: 0.5937\n",
+            "Epoch 1: accuracy improved from -inf to 0.75798, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m5s\u001b[0m 32ms/step - accuracy: 0.7193 - loss: 0.5911\n",
+            "Epoch 2/7\n",
+            "\u001b[1m77/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 31ms/step - accuracy: 0.8547 - loss: 0.3383\n",
+            "Epoch 2: accuracy improved from 0.75798 to 0.85277, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m3s\u001b[0m 32ms/step - accuracy: 0.8546 - loss: 0.3385\n",
+            "Epoch 3/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 32ms/step - accuracy: 0.9011 - loss: 0.2465\n",
+            "Epoch 3: accuracy improved from 0.85277 to 0.89390, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m3s\u001b[0m 33ms/step - accuracy: 0.9009 - loss: 0.2467\n",
+            "Epoch 4/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 40ms/step - accuracy: 0.9174 - loss: 0.2085\n",
+            "Epoch 4: accuracy improved from 0.89390 to 0.91783, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m6s\u001b[0m 40ms/step - accuracy: 0.9174 - loss: 0.2085\n",
+            "Epoch 5/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 31ms/step - accuracy: 0.9459 - loss: 0.1505\n",
+            "Epoch 5: accuracy improved from 0.91783 to 0.94005, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m3s\u001b[0m 32ms/step - accuracy: 0.9458 - loss: 0.1507\n",
+            "Epoch 6/7\n",
+            "\u001b[1m77/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 32ms/step - accuracy: 0.9580 - loss: 0.1222\n",
+            "Epoch 6: accuracy improved from 0.94005 to 0.95416, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m3s\u001b[0m 32ms/step - accuracy: 0.9579 - loss: 0.1225\n",
+            "Epoch 7/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 32ms/step - accuracy: 0.9681 - loss: 0.0951\n",
+            "Epoch 7: accuracy improved from 0.95416 to 0.96147, saving model to models/LSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m3s\u001b[0m 33ms/step - accuracy: 0.9679 - loss: 0.0953\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<keras.src.callbacks.history.History at 0x78473fc62410>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 49
+        }
+      ],
+      "source": [
+        "lstm_model.fit(x_train, y_train, batch_size = 128, epochs = 7, callbacks=[lstm_checkpoint])\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# LSTM Training Accuracy\n",
+        "lstm_train_pred = lstm_model.predict(x=x_train)\n",
+        "lstm_train_y_pred = (lstm_train_pred >= 0.5) * 1\n",
+        "\n",
+        "true = 0\n",
+        "for i, y in enumerate(y_train):\n",
+        "    if y == lstm_train_y_pred[i]:\n",
+        "        true += 1\n",
+        "\n",
+        "print('LSTM Training Accuracy')\n",
+        "print('Correct Prediction:{}'.format(true))\n",
+        "print('Wrong Prediction:{}'.format(len(lstm_train_y_pred) - true))\n",
+        "print('Accuracy: {:.2f}%'.format(true/ len(lstm_train_y_pred) * 100))"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "l06qeSDNZsXx",
+        "outputId": "9d5ce23b-b066-4f58-a81d-208c31aea08e"
+      },
+      "execution_count": 50,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\u001b[1m313/313\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m2s\u001b[0m 5ms/step\n",
+            "LSTM Training Accuracy\n",
+            "Correct Prediction:9744\n",
+            "Wrong Prediction:247\n",
+            "Accuracy: 97.53%\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"Train BiLSTM\")\n",
+        "bilstm_model.fit(x_train, y_train, batch_size = 128, epochs = 7, callbacks=[bilstm_checkpoint])"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "ERcIYgt0luR1",
+        "outputId": "8a2be617-fe63-4a88-c61e-1abc4d060841"
+      },
+      "execution_count": 61,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Train BiLSTM\n",
+            "Epoch 1/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 72ms/step - accuracy: 0.7213 - loss: 0.5869\n",
+            "Epoch 1: accuracy improved from -inf to 0.76018, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m10s\u001b[0m 73ms/step - accuracy: 0.7223 - loss: 0.5851\n",
+            "Epoch 2/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 61ms/step - accuracy: 0.8600 - loss: 0.3291\n",
+            "Epoch 2: accuracy improved from 0.76018 to 0.85797, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m5s\u001b[0m 62ms/step - accuracy: 0.8599 - loss: 0.3291\n",
+            "Epoch 3/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 85ms/step - accuracy: 0.9031 - loss: 0.2340\n",
+            "Epoch 3: accuracy improved from 0.85797 to 0.89881, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m7s\u001b[0m 85ms/step - accuracy: 0.9030 - loss: 0.2342\n",
+            "Epoch 4/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 60ms/step - accuracy: 0.9357 - loss: 0.1744\n",
+            "Epoch 4: accuracy improved from 0.89881 to 0.93044, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m5s\u001b[0m 61ms/step - accuracy: 0.9355 - loss: 0.1745\n",
+            "Epoch 5/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 62ms/step - accuracy: 0.9571 - loss: 0.1253\n",
+            "Epoch 5: accuracy improved from 0.93044 to 0.95216, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m5s\u001b[0m 63ms/step - accuracy: 0.9569 - loss: 0.1254\n",
+            "Epoch 6/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 79ms/step - accuracy: 0.9678 - loss: 0.0918\n",
+            "Epoch 6: accuracy improved from 0.95216 to 0.96577, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m6s\u001b[0m 79ms/step - accuracy: 0.9677 - loss: 0.0920\n",
+            "Epoch 7/7\n",
+            "\u001b[1m78/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m━\u001b[0m \u001b[1m0s\u001b[0m 60ms/step - accuracy: 0.9731 - loss: 0.0720\n",
+            "Epoch 7: accuracy improved from 0.96577 to 0.97207, saving model to models/BiLSTM.h5\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. \n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\r\u001b[1m79/79\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m5s\u001b[0m 61ms/step - accuracy: 0.9731 - loss: 0.0723\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<keras.src.callbacks.history.History at 0x784734c2bdd0>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 61
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# BiLSTM Training Accuracy\n",
+        "bilstm_train_pred = bilstm_model.predict(x=x_train)\n",
+        "bilstm_train_y_pred = (bilstm_train_pred >= 0.5) * 1\n",
+        "\n",
+        "true = 0\n",
+        "for i, y in enumerate(y_train):\n",
+        "    if y == bilstm_train_y_pred[i]:\n",
+        "        true += 1\n",
+        "\n",
+        "print('biLSTM Training Accuracy')\n",
+        "print('Correct Prediction: {}'.format(true))\n",
+        "print('Wrong Prediction: {}'.format(len(bilstm_train_y_pred) - true))\n",
+        "print('Accuracy: {:.2f}%'.format(true/ len(bilstm_train_y_pred) * 100))"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "mP7Jza1Wbbo9",
+        "outputId": "07c6346e-6ab3-48e0-d26a-42c719527827"
+      },
+      "execution_count": 62,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\u001b[1m313/313\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m4s\u001b[0m 13ms/step\n",
+            "biLSTM Training Accuracy\n",
+            "Correct Prediction: 9826\n",
+            "Wrong Prediction: 165\n",
+            "Accuracy: 98.35%\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#lstm_Model testing"
+      ],
+      "metadata": {
+        "id": "DqUvLFwhzGYk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 53,
+      "metadata": {
+        "id": "7cIDxgtxxIud",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "286181c9-9dca-490d-95fb-ab9915063448"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\u001b[1m105/105\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m1s\u001b[0m 5ms/step\n",
+            "Correct Prediction: 2652\n",
+            "Wrong Prediction: 679\n",
+            "Accuracy: 79.61573101170819\n"
+          ]
+        }
+      ],
+      "source": [
+        "lstm_pred = lstm_model.predict(x=x_test)\n",
+        "lstm_y_pred = (lstm_pred >= 0.5) * 1\n",
+        "\n",
+        "#y_pred = model.predict(x_test)\n",
+        "\n",
+        "true = 0\n",
+        "for i, y in enumerate(y_test):\n",
+        "    if y == lstm_y_pred[i]:\n",
+        "        true += 1\n",
+        "\n",
+        "\n",
+        "print('Correct Prediction: {}'.format(true))\n",
+        "print('Wrong Prediction: {}'.format(len(lstm_y_pred) - true))\n",
+        "print('Accuracy: {}'.format(true/len(lstm_y_pred)*100))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#bilstm_Model testing"
+      ],
+      "metadata": {
+        "id": "eC_AD4eSnDMI"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "bilstm_pred = bilstm_model.predict(x=x_test)\n",
+        "bilstm_y_pred = (bilstm_pred >= 0.5) * 1\n",
+        "\n",
+        "#y_pred = model.predict(x_test)\n",
+        "\n",
+        "true = 0\n",
+        "for i, y in enumerate(y_test):\n",
+        "    if y == bilstm_y_pred[i]:\n",
+        "        true += 1\n",
+        "\n",
+        "\n",
+        "print('Correct Prediction: {}'.format(true))\n",
+        "print('Wrong Prediction: {}'.format(len(bilstm_y_pred) - true))\n",
+        "print('Accuracy: {}'.format(true/len(bilstm_y_pred)*100))"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "14oJnr50aSBs",
+        "outputId": "4b98dd53-a78c-44a0-daec-43a99868c4e2"
+      },
+      "execution_count": 63,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "\u001b[1m105/105\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m1s\u001b[0m 8ms/step\n",
+            "Correct Prediction: 2634\n",
+            "Wrong Prediction: 697\n",
+            "Accuracy: 79.07535274692285\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "nbconvert_exporter": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.7.4"
+    },
+    "colab": {
+      "provenance": []
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}

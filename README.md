@@ -1,13 +1,13 @@
 # Tweet-Sentiment-Analysis-Using-Deep-Learning-
-# 🧠 Tweet Classification with 2-Layer LSTM (Trained Embeddings)
+# 🧠 Tweet Classification with 2-Layer LSTM and BI LSTM (Trained Embeddings)
 
-This project implements a deep learning model using a **2-layer LSTM architecture** to classify tweets as personal health mentions or non-mentions. The model uses a **trainable embedding layer** (no pre-trained word vectors).
+This project implements a deep learning model using a **2-layer LSTM architecture** and BI LSTM to classify tweets as personal health mentions or non-mentions. The model uses a **trainable embedding layer**.
 
 ---
 
 ## 📌 Objective
 
-To build and train a binary classification model that:
+To build and train a binary classification models that:
 - Classifies tweets into personal health mentions (label 1) or not (label 0)
 - Uses a trainable embedding layer initialized by Keras
 
@@ -38,7 +38,6 @@ Embedding (trainable)
 → LSTM Layer (64 units, return_sequences=True)
 → Dropout (0.3)
 → LSTM Layer (32 units)
-→ Dropout (0.3)
 → Dense Layer (1 unit, sigmoid activation)
 
 Embedding Details
